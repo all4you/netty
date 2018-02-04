@@ -109,14 +109,32 @@ final class PoolChunk<T> implements PoolChunkMetric {
     final boolean unpooled;
     final int offset;
 
+    /**
+     * 一棵完全二叉树，节点的值表示该节点的深度，
+     * 如果深度在后期发生了变化则表示该节点已经被分配了
+     */
     private final byte[] memoryMap;
+    /**
+     * 用来保存每个节点的深度，并在后期不会发生变动
+     */
     private final byte[] depthMap;
+    /**
+     * 一个chunk中有2^maxOrder个PoolSubpage
+     */
     private final PoolSubpage<T>[] subpages;
     /** Used to determine if the requested capacity is equal to or greater than pageSize. */
     private final int subpageOverflowMask;
+    /**
+     * 页的大小
+     * 默认为8192(8K)
+     */
     private final int pageSize;
     private final int pageShifts;
     private final int maxOrder;
+    /**
+     * 块的大小
+     * chunkSize=pageSize*2^maxOrder
+     */
     private final int chunkSize;
     private final int log2ChunkSize;
     private final int maxSubpageAllocs;
@@ -141,15 +159,18 @@ final class PoolChunk<T> implements PoolChunkMetric {
         this.maxOrder = maxOrder;
         this.chunkSize = chunkSize;
         this.offset = offset;
+        // 如果一个节点的深度被标记为树的深度加1，则表明该节点当前是unusable了
         unusable = (byte) (maxOrder + 1);
         log2ChunkSize = log2(chunkSize);
         subpageOverflowMask = ~(pageSize - 1);
         freeBytes = chunkSize;
 
         assert maxOrder < 30 : "maxOrder should be < 30, but is: " + maxOrder;
+        // maxSubpageAllocs = 2^maxOrder
         maxSubpageAllocs = 1 << maxOrder;
 
         // Generate the memory map.
+        // memoryMap的长度 = maxSubpageAllocs*2
         memoryMap = new byte[maxSubpageAllocs << 1];
         depthMap = new byte[memoryMap.length];
         int memoryMapIndex = 1;
@@ -157,6 +178,7 @@ final class PoolChunk<T> implements PoolChunkMetric {
             int depth = 1 << d;
             for (int p = 0; p < depth; ++ p) {
                 // in each level traverse left to right and set value to the depth of subtree
+                // 初始化时memoryMap和depthMap都保存的是每个节点在树种的深度
                 memoryMap[memoryMapIndex] = (byte) d;
                 depthMap[memoryMapIndex] = (byte) d;
                 memoryMapIndex ++;
@@ -212,8 +234,11 @@ final class PoolChunk<T> implements PoolChunkMetric {
     }
 
     long allocate(int normCapacity) {
+        // 如果normCapacity大于pageSize，则说明一个SubPage无法分配，
+        // 需要至少两个连续的SubPage来分配，通过allocateRun方法进行分配
         if ((normCapacity & subpageOverflowMask) != 0) { // >= pageSize
             return allocateRun(normCapacity);
+        // 一个SubPage就可以满足容量需求，通过allocateSubpage进行分配
         } else {
             return allocateSubpage(normCapacity);
         }
@@ -228,11 +253,17 @@ final class PoolChunk<T> implements PoolChunkMetric {
      * @param id id
      */
     private void updateParentsAlloc(int id) {
+        // 遍历标记当前节点的父节点，直到循环到根节点为止
         while (id > 1) {
+            // 当前节点的父节点
             int parentId = id >>> 1;
+            // 当前节点的深度
             byte val1 = value(id);
+            // 当前节点兄弟节点的深度
             byte val2 = value(id ^ 1);
+            // 找出当前节点和兄弟节点中深度较小的，因为深度越小，包含的空闲的内存越多
             byte val = val1 < val2 ? val1 : val2;
+            // 将父节点的深度标记为val
             setValue(parentId, val);
             id = parentId;
         }
@@ -272,36 +303,52 @@ final class PoolChunk<T> implements PoolChunkMetric {
      * @return index in memoryMap
      */
     private int allocateNode(int d) {
+        System.out.println("try to find node with depth="+d+"\n-------------------------------");
+        // 从树的第一个节点开始遍历
         int id = 1;
         int initial = - (1 << d); // has last d bits = 0 and rest all = 1
+        // 计算节点的深度
         byte val = value(id);
+        // 如果根节点的深度大于d，则说明根节点也无法分配，直接返回
         if (val > d) { // unusable
             return -1;
         }
+        // 如果当前节点的深度小于d，则从树的下一层开始匹配，直到找到深度和d相等的那一层
         while (val < d || (id & initial) == 0) { // id & initial == 1 << d for all ids at depth d, for < d it is 0
+            // 从树的下一层开始匹配 id = id*2
             id <<= 1;
             val = value(id);
+            System.out.println("check node id="+id+",depth="+val);
+            // 如果当前节点的深度大于d，则说明当前节点有子节点被分配了，则从id的兄弟节点进行匹配
             if (val > d) {
+                // 从当前节点右边的兄弟节点开始匹配
                 id ^= 1;
                 val = value(id);
+                System.out.println("check brother node id="+id+",depth="+val);
             }
         }
         byte value = value(id);
         assert value == d && (id & initial) == 1 << d : String.format("val = %d, id & initial = %d, d = %d",
                 value, id & initial, d);
+        System.out.println("-------------------------------\nmatch node it="+id+",depth="+value+"\n-------------------------------");
+        // 将当前节点id标记为不可用，防止其他线程分配
         setValue(id, unusable); // mark as unusable
+        // 更新当前节点的父节点
         updateParentsAlloc(id);
         return id;
     }
 
     /**
      * Allocate a run of pages (>=1)
-     *
+     * 分配一连串的pages，至少一个page
      * @param normCapacity normalized capacity
      * @return index in memoryMap
      */
     private long allocateRun(int normCapacity) {
+        System.out.println("allocateRun normCapacity="+normCapacity);
+        // 根据容量normCapacity得到该容量的节点应该在树的第几层，计算得到d
         int d = maxOrder - (log2(normCapacity) - pageShifts);
+        // 遍历节点，得到满足条件的节点，并返回该节点的id，即在memoryMap数组中的下标
         int id = allocateNode(d);
         if (id < 0) {
             return id;
@@ -318,6 +365,7 @@ final class PoolChunk<T> implements PoolChunkMetric {
      * @return index in memoryMap
      */
     private long allocateSubpage(int normCapacity) {
+        System.out.println("allocateSubpage normCapacity="+normCapacity);
         // Obtain the head of the PoolSubPage pool that is owned by the PoolArena and synchronize on it.
         // This is need as we may add it back and so alter the linked-list structure.
         PoolSubpage<T> head = arena.findSubpagePoolHead(normCapacity);
