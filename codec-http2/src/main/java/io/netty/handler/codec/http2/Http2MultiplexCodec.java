@@ -32,7 +32,6 @@ import io.netty.channel.ChannelPromise;
 import io.netty.channel.DefaultChannelConfig;
 import io.netty.channel.DefaultChannelPipeline;
 import io.netty.channel.DefaultMaxMessagesRecvByteBufAllocator;
-import io.netty.channel.DelegatingChannelPromiseNotifier;
 import io.netty.channel.EventLoop;
 import io.netty.channel.MessageSizeEstimator;
 import io.netty.channel.RecvByteBufAllocator;
@@ -155,9 +154,6 @@ public class Http2MultiplexCodec extends Http2FrameCodec {
     private final ChannelHandler inboundStreamHandler;
 
     private int initialOutboundStreamWindow = Http2CodecUtil.DEFAULT_WINDOW_SIZE;
-    // TODO: We may be able to optimize when we really need to call flush(...) during channelReadComplete(...)
-    // by checking if this is true and only then call flush(...).
-    private boolean flushNeeded;
     private boolean parentReadInProgress;
     private int idCount;
 
@@ -227,6 +223,9 @@ public class Http2MultiplexCodec extends Http2FrameCodec {
             if (settings.initialWindowSize() != null) {
                 initialOutboundStreamWindow = settings.initialWindowSize();
             }
+        } else {
+            // Send any other frames down the pipeline
+            ctx.fireChannelRead(frame);
         }
     }
 
@@ -373,16 +372,8 @@ public class Http2MultiplexCodec extends Http2FrameCodec {
             tail = head = null;
 
             // We always flush as this is what Http2ConnectionHandler does for now.
-            // TODO: I think this is not really necessary and we should be able to optimize this in the future by
-            // checking flushNeeded and only flush if this returns true.
             flush0(ctx);
         }
-    }
-
-    @Override
-    public final void flush(ChannelHandlerContext ctx) {
-        flushNeeded = false;
-        super.flush(ctx);
     }
 
     // Allow to override for testing
@@ -438,6 +429,7 @@ public class Http2MultiplexCodec extends Http2FrameCodec {
         // We start with the writability of the channel when creating the StreamChannel.
         private volatile boolean writable;
 
+        private boolean outboundClosed;
         private boolean closePending;
         private boolean readInProgress;
         private Queue<Object> inboundBuffer;
@@ -450,7 +442,6 @@ public class Http2MultiplexCodec extends Http2FrameCodec {
 
         // Keeps track of flush calls in channelReadComplete(...) and aggregate these.
         private boolean inFireChannelReadComplete;
-        private boolean flushPending;
 
         boolean fireChannelReadPending;
 
@@ -765,10 +756,8 @@ public class Http2MultiplexCodec extends Http2FrameCodec {
                     unsafe().recvBufAllocHandle().readComplete();
                     pipeline().fireChannelReadComplete();
                 }
-                flushNeeded |= flushPending;
             } finally {
                 inFireChannelReadComplete = false;
-                flushPending = false;
             }
         }
 
@@ -778,7 +767,7 @@ public class Http2MultiplexCodec extends Http2FrameCodec {
             @SuppressWarnings("deprecation")
             private RecvByteBufAllocator.ExtendedHandle recvHandle;
             private boolean writeDoneAndNoFlush;
-            private ChannelPromise pendingClosePromise;
+            private boolean closeInitiated;
 
             @Override
             public void connect(final SocketAddress remoteAddress,
@@ -841,56 +830,60 @@ public class Http2MultiplexCodec extends Http2FrameCodec {
 
             @Override
             public void disconnect(ChannelPromise promise) {
-                if (!promise.setUncancellable()) {
-                    return;
-                }
                 close(promise);
             }
 
             @Override
-            public void close(ChannelPromise promise) {
+            public void close(final ChannelPromise promise) {
                 if (!promise.setUncancellable()) {
                     return;
                 }
-                if (closePromise.isDone()) {
-                    promise.setFailure(new ClosedChannelException());
-                    return;
-                }
-                if (pendingClosePromise != null) {
-                    pendingClosePromise.addListener(new DelegatingChannelPromiseNotifier(promise));
-                    return;
-                }
-                pendingClosePromise = promise;
-                try {
-                    closePending = false;
-                    fireChannelReadPending = false;
-
-                    // Only ever send a reset frame if the connection is still alive as otherwise it makes no sense at
-                    // all anyway.
-                    if (parent().isActive() && !streamClosedWithoutError && isStreamIdValid(stream().id())) {
-                        Http2StreamFrame resetFrame = new DefaultHttp2ResetFrame(Http2Error.CANCEL).stream(stream());
-                        write(resetFrame, unsafe().voidPromise());
-                        flush();
-                    }
-
-                    if (inboundBuffer != null) {
-                        for (;;) {
-                            Object msg = inboundBuffer.poll();
-                            if (msg == null) {
-                                break;
+                if (closeInitiated) {
+                    if (closePromise.isDone()) {
+                        // Closed already.
+                        promise.setSuccess();
+                    } else if (!(promise instanceof VoidChannelPromise)) { // Only needed if no VoidChannelPromise.
+                        // This means close() was called before so we just register a listener and return
+                        closePromise.addListener(new ChannelFutureListener() {
+                            @Override
+                            public void operationComplete(ChannelFuture future) throws Exception {
+                                promise.setSuccess();
                             }
-                            ReferenceCountUtil.release(msg);
-                        }
+                        });
                     }
+                    return;
+                }
+                closeInitiated = true;
 
-                    pipeline().fireChannelInactive();
-                    if (isRegistered()) {
-                        deregister(unsafe().voidPromise());
+                closePending = false;
+                fireChannelReadPending = false;
+
+                // Only ever send a reset frame if the connection is still alive as otherwise it makes no sense at
+                // all anyway.
+                if (parent().isActive() && !streamClosedWithoutError && isStreamIdValid(stream().id())) {
+                    Http2StreamFrame resetFrame = new DefaultHttp2ResetFrame(Http2Error.CANCEL).stream(stream());
+                    write(resetFrame, unsafe().voidPromise());
+                    flush();
+                }
+
+                if (inboundBuffer != null) {
+                    for (;;) {
+                        Object msg = inboundBuffer.poll();
+                        if (msg == null) {
+                            break;
+                        }
+                        ReferenceCountUtil.release(msg);
                     }
-                    promise.setSuccess();
-                    closePromise.setSuccess();
-                } finally {
-                    pendingClosePromise = null;
+                }
+
+                // The promise should be notified before we call fireChannelInactive().
+                outboundClosed = true;
+                closePromise.setSuccess();
+                promise.setSuccess();
+
+                pipeline().fireChannelInactive();
+                if (isRegistered()) {
+                    deregister(unsafe().voidPromise());
                 }
             }
 
@@ -988,7 +981,9 @@ public class Http2MultiplexCodec extends Http2FrameCodec {
                     return;
                 }
 
-                if (!isActive()) {
+                if (!isActive() ||
+                        // Once the outbound side was closed we should not allow header / data frames
+                        outboundClosed && (msg instanceof Http2HeadersFrame || msg instanceof Http2DataFrame)) {
                     ReferenceCountUtil.release(msg);
                     promise.setFailure(CLOSED_CHANNEL_EXCEPTION);
                     return;
@@ -1054,7 +1049,8 @@ public class Http2MultiplexCodec extends Http2FrameCodec {
                     writabilityChanged(Http2MultiplexCodec.this.isWritable(stream));
                     promise.setSuccess();
                 } else {
-                    promise.setFailure(cause);
+                    promise.setFailure(wrapStreamClosedError(cause));
+                    // If the first write fails there is not much we can do, just close
                     closeForcibly();
                 }
             }
@@ -1064,8 +1060,27 @@ public class Http2MultiplexCodec extends Http2FrameCodec {
                 if (cause == null) {
                     promise.setSuccess();
                 } else {
-                    promise.setFailure(cause);
+                    Throwable error = wrapStreamClosedError(cause);
+                    promise.setFailure(error);
+
+                    if (error instanceof ClosedChannelException) {
+                        if (config.isAutoClose()) {
+                            // Close channel if needed.
+                            closeForcibly();
+                        } else {
+                            outboundClosed = true;
+                        }
+                    }
                 }
+            }
+
+            private Throwable wrapStreamClosedError(Throwable cause) {
+                // If the error was caused by STREAM_CLOSED we should use a ClosedChannelException to better
+                // mimic other transports and make it easier to reason about what exceptions to expect.
+                if (cause instanceof Http2Exception && ((Http2Exception) cause).error() == Http2Error.STREAM_CLOSED) {
+                    return new ClosedChannelException().initCause(cause);
+                }
+                return cause;
             }
 
             private Http2StreamFrame validateStreamFrame(Http2StreamFrame frame) {
@@ -1091,13 +1106,11 @@ public class Http2MultiplexCodec extends Http2FrameCodec {
                     return;
                 }
                 try {
-                    // If we are current channelReadComplete(...) call we should just mark this Channel with a flush
-                    // pending. We will ensure we trigger ctx.flush() after we processed all Channels later on and
+                    // If we are currently in the  channelReadComplete(...) call we should just ignore the flush.
+                    // We will ensure we trigger ctx.flush() after we processed all Channels later on and
                     // so aggregate the flushes. This is done as ctx.flush() is expensive when as it may trigger an
                     // write(...) or writev(...) operation on the socket.
-                    if (inFireChannelReadComplete) {
-                        flushPending = true;
-                    } else {
+                    if (!inFireChannelReadComplete) {
                         flush0(ctx);
                     }
                 } finally {

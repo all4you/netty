@@ -389,14 +389,14 @@ public class Http2FrameCodecTest {
     }
 
     @Test
-    public void streamErrorShouldFireException() throws Exception {
+    public void streamErrorShouldFireExceptionForInbound() throws Exception {
         frameListener.onHeadersRead(http2HandlerCtx, 3, request, 31, false);
 
         Http2Stream stream = frameCodec.connection().stream(3);
         assertNotNull(stream);
 
         StreamException streamEx = new StreamException(3, Http2Error.INTERNAL_ERROR, "foo");
-        frameCodec.onError(http2HandlerCtx, streamEx);
+        frameCodec.onError(http2HandlerCtx, false, streamEx);
 
         Http2FrameStreamEvent event = inboundHandler.readInboundMessageOrUserEvent();
         assertEquals(Http2FrameStreamEvent.Type.State, event.type());
@@ -410,6 +410,28 @@ public class Http2FrameCodecTest {
         } catch (Http2FrameStreamException e) {
             assertEquals(streamEx, e.getCause());
         }
+
+        assertNull(inboundHandler.readInboundMessageOrUserEvent());
+    }
+
+    @Test
+    public void streamErrorShouldNotFireExceptionForOutbound() throws Exception {
+        frameListener.onHeadersRead(http2HandlerCtx, 3, request, 31, false);
+
+        Http2Stream stream = frameCodec.connection().stream(3);
+        assertNotNull(stream);
+
+        StreamException streamEx = new StreamException(3, Http2Error.INTERNAL_ERROR, "foo");
+        frameCodec.onError(http2HandlerCtx, true, streamEx);
+
+        Http2FrameStreamEvent event = inboundHandler.readInboundMessageOrUserEvent();
+        assertEquals(Http2FrameStreamEvent.Type.State, event.type());
+        assertEquals(State.OPEN, event.stream().state());
+        Http2HeadersFrame headersFrame = inboundHandler.readInboundMessageOrUserEvent();
+        assertNotNull(headersFrame);
+
+        // No exception expected
+        inboundHandler.checkException();
 
         assertNull(inboundHandler.readInboundMessageOrUserEvent());
     }
@@ -478,16 +500,38 @@ public class Http2FrameCodecTest {
     }
 
     @Test
-    public void streamZeroWindowUpdateIncrementsConnectionWindow() throws Exception {
+    public void streamZeroWindowUpdateIncrementsConnectionWindow() throws Http2Exception {
         Http2Connection connection = frameCodec.connection();
         Http2LocalFlowController localFlow = connection.local().flowController();
         int initialWindowSizeBefore = localFlow.initialWindowSize();
+        Http2Stream connectionStream = connection.connectionStream();
+        int connectionWindowSizeBefore = localFlow.windowSize(connectionStream);
+        // We only replenish the flow control window after the amount consumed drops below the following threshold.
+        // We make the threshold very "high" so that window updates will be sent when the delta is relatively small.
+        ((DefaultHttp2LocalFlowController) localFlow).windowUpdateRatio(connectionStream, .999f);
 
         int windowUpdate = 1024;
 
         channel.write(new DefaultHttp2WindowUpdateFrame(windowUpdate));
 
-        assertEquals(initialWindowSizeBefore + windowUpdate, localFlow.initialWindowSize());
+        // The initial window size is only changed by Http2Settings, so it shouldn't change.
+        assertEquals(initialWindowSizeBefore, localFlow.initialWindowSize());
+        // The connection window should be increased by the delta amount.
+        assertEquals(connectionWindowSizeBefore + windowUpdate, localFlow.windowSize(connectionStream));
+    }
+
+    @Test
+    public void windowUpdateDoesNotOverflowConnectionWindow() {
+        Http2Connection connection = frameCodec.connection();
+        Http2LocalFlowController localFlow = connection.local().flowController();
+        int initialWindowSizeBefore = localFlow.initialWindowSize();
+
+        channel.write(new DefaultHttp2WindowUpdateFrame(Integer.MAX_VALUE));
+
+        // The initial window size is only changed by Http2Settings, so it shouldn't change.
+        assertEquals(initialWindowSizeBefore, localFlow.initialWindowSize());
+        // The connection window should be increased by the delta amount.
+        assertEquals(Integer.MAX_VALUE, localFlow.windowSize(connection.connectionStream()));
     }
 
     @Test
@@ -675,7 +719,7 @@ public class Http2FrameCodecTest {
                 UpgradeEvent.class.getDeclaredConstructor(CharSequence.class, FullHttpRequest.class);
 
         // Check if we could make it accessible which may fail on java9.
-        Assume.assumeTrue(ReflectionUtil.trySetAccessible(constructor) == null);
+        Assume.assumeTrue(ReflectionUtil.trySetAccessible(constructor, true) == null);
 
         HttpServerUpgradeHandler.UpgradeEvent upgradeEvent = constructor.newInstance(
                 "HTTP/2", new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/"));
@@ -713,7 +757,7 @@ public class Http2FrameCodecTest {
                 UpgradeEvent.class.getDeclaredConstructor(CharSequence.class, FullHttpRequest.class);
 
         // Check if we could make it accessible which may fail on java9.
-        Assume.assumeTrue(ReflectionUtil.trySetAccessible(constructor) == null);
+        Assume.assumeTrue(ReflectionUtil.trySetAccessible(constructor, true) == null);
 
         String longString = new String(new char[70000]).replace("\0", "*");
         DefaultFullHttpRequest request =

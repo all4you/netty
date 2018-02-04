@@ -682,8 +682,7 @@ public final class ByteBufUtil {
             dst.clear();
         }
         if (src.nioBufferCount() == 1) {
-            // Use internalNioBuffer(...) to reduce object creation.
-            decodeString(decoder, src.internalNioBuffer(readerIndex, len), dst);
+            decodeString(decoder, src.nioBuffer(readerIndex, len), dst);
         } else {
             // We use a heap buffer as CharsetDecoder is most likely able to use a fast-path if src and dst buffers
             // are both backed by a byte array.
@@ -1152,9 +1151,9 @@ public final class ByteBufUtil {
             CharsetDecoder decoder = CharsetUtil.decoder(charset, CodingErrorAction.REPORT, CodingErrorAction.REPORT);
             try {
                 if (buf.nioBufferCount() == 1) {
-                    decoder.decode(buf.internalNioBuffer(index, length));
+                    decoder.decode(buf.nioBuffer(index, length));
                 } else {
-                    ByteBuf heapBuffer =  buf.alloc().heapBuffer(length);
+                    ByteBuf heapBuffer = buf.alloc().heapBuffer(length);
                     try {
                         heapBuffer.writeBytes(buf, index, length);
                         decoder.decode(heapBuffer.internalNioBuffer(heapBuffer.readerIndex(), length));

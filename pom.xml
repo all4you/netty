@@ -26,7 +26,7 @@
   <groupId>io.netty</groupId>
   <artifactId>netty-parent</artifactId>
   <packaging>pom</packaging>
-  <version>4.1.20.Final-SNAPSHOT</version>
+  <version>4.1.21.Final-SNAPSHOT</version>
 
   <name>Netty</name>
   <url>http://netty.io/</url>
@@ -721,6 +721,9 @@
             <ignore>java.nio.file.Path</ignore>
             <ignore>java.io.File</ignore>
           </ignores>
+          <annotations>
+            <annotation>io.netty.util.internal.SuppressJava6Requirement</annotation>
+          </annotations>
         </configuration>
         <executions>
           <execution>
