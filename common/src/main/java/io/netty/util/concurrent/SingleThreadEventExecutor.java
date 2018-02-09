@@ -79,8 +79,15 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
             AtomicReferenceFieldUpdater.newUpdater(
                     SingleThreadEventExecutor.class, ThreadProperties.class, "threadProperties");
 
+    /**
+     * 任务的优先级队列
+     */
     private final Queue<Runnable> taskQueue;
 
+    /**
+     * 用来执行任务的线程
+     * 该线程其实就是用来支撑SingleThreadEventLoop的
+     */
     private volatile Thread thread;
     @SuppressWarnings("unused")
     private volatile ThreadProperties threadProperties;
@@ -390,6 +397,7 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
      * the tasks in the task queue and returns if it ran longer than {@code timeoutNanos}.
      */
     protected boolean runAllTasks(long timeoutNanos) {
+        // 首先处理scheduledTaskQueue中的任务
         fetchFromScheduledTaskQueue();
         Runnable task = pollTask();
         if (task == null) {

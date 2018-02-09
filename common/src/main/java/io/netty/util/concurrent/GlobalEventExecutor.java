@@ -73,6 +73,7 @@ public final class GlobalEventExecutor extends AbstractScheduledEventExecutor {
      * @return {@code null} if the executor thread has been interrupted or waken up.
      */
     Runnable takeTask() {
+        System.out.println("gris-debug-GlobalEventExecutor--takeTask");
         BlockingQueue<Runnable> taskQueue = this.taskQueue;
         for (;;) {
             ScheduledFutureTask<?> scheduledTask = peekScheduledTask();
@@ -134,6 +135,7 @@ public final class GlobalEventExecutor extends AbstractScheduledEventExecutor {
      * before.
      */
     private void addTask(Runnable task) {
+        System.out.println("gris-debug-GlobalEventExecutor--addTask");
         if (task == null) {
             throw new NullPointerException("task");
         }
@@ -204,6 +206,7 @@ public final class GlobalEventExecutor extends AbstractScheduledEventExecutor {
 
     @Override
     public void execute(Runnable task) {
+        System.out.println("gris-debug-GlobalEventExecutor--execute task");
         if (task == null) {
             throw new NullPointerException("task");
         }
@@ -215,6 +218,7 @@ public final class GlobalEventExecutor extends AbstractScheduledEventExecutor {
     }
 
     private void startThread() {
+        System.out.println("gris-debug-GlobalEventExecutor--startThread");
         if (started.compareAndSet(false, true)) {
             final Thread t = threadFactory.newThread(taskRunner);
             // Set to null to ensure we not create classloader leaks by holds a strong reference to the inherited

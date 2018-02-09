@@ -303,7 +303,6 @@ final class PoolChunk<T> implements PoolChunkMetric {
      * @return index in memoryMap
      */
     private int allocateNode(int d) {
-        System.out.println("try to find node with depth="+d+"\n-------------------------------");
         // 从树的第一个节点开始遍历
         int id = 1;
         int initial = - (1 << d); // has last d bits = 0 and rest all = 1
@@ -318,19 +317,16 @@ final class PoolChunk<T> implements PoolChunkMetric {
             // 从树的下一层开始匹配 id = id*2
             id <<= 1;
             val = value(id);
-            System.out.println("check node id="+id+",depth="+val);
             // 如果当前节点的深度大于d，则说明当前节点有子节点被分配了，则从id的兄弟节点进行匹配
             if (val > d) {
                 // 从当前节点右边的兄弟节点开始匹配
                 id ^= 1;
                 val = value(id);
-                System.out.println("check brother node id="+id+",depth="+val);
             }
         }
         byte value = value(id);
         assert value == d && (id & initial) == 1 << d : String.format("val = %d, id & initial = %d, d = %d",
                 value, id & initial, d);
-        System.out.println("-------------------------------\nmatch node it="+id+",depth="+value+"\n-------------------------------");
         // 将当前节点id标记为不可用，防止其他线程分配
         setValue(id, unusable); // mark as unusable
         // 更新当前节点的父节点
@@ -345,7 +341,6 @@ final class PoolChunk<T> implements PoolChunkMetric {
      * @return index in memoryMap
      */
     private long allocateRun(int normCapacity) {
-        System.out.println("allocateRun normCapacity="+normCapacity);
         // 根据容量normCapacity得到该容量的节点应该在树的第几层，计算得到d
         int d = maxOrder - (log2(normCapacity) - pageShifts);
         // 遍历节点，得到满足条件的节点，并返回该节点的id，即在memoryMap数组中的下标
@@ -365,7 +360,6 @@ final class PoolChunk<T> implements PoolChunkMetric {
      * @return index in memoryMap
      */
     private long allocateSubpage(int normCapacity) {
-        System.out.println("allocateSubpage normCapacity="+normCapacity);
         // Obtain the head of the PoolSubPage pool that is owned by the PoolArena and synchronize on it.
         // This is need as we may add it back and so alter the linked-list structure.
         PoolSubpage<T> head = arena.findSubpagePoolHead(normCapacity);
