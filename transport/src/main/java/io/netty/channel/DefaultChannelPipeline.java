@@ -40,6 +40,7 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
 /**
+ * 当Channel被创建时，会自动为其创建一个ChannelPipeline
  * The default {@link ChannelPipeline} implementation.  It is usually created
  * by a {@link Channel} implementation when the {@link Channel} is created.
  */
@@ -61,9 +62,13 @@ public class DefaultChannelPipeline implements ChannelPipeline {
     private static final AtomicReferenceFieldUpdater<DefaultChannelPipeline, MessageSizeEstimator.Handle> ESTIMATOR =
             AtomicReferenceFieldUpdater.newUpdater(
                     DefaultChannelPipeline.class, MessageSizeEstimator.Handle.class, "estimatorHandle");
+
+    // pipeline中的第一个ChannelHandlerContext
     final AbstractChannelHandlerContext head;
+    // pipeline中的最后一个ChannelHandlerContext
     final AbstractChannelHandlerContext tail;
 
+    // pipeline所关联的Channel
     private final Channel channel;
     private final ChannelFuture succeededFuture;
     private final VoidChannelPromise voidPromise;
@@ -158,9 +163,9 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         synchronized (this) {
             checkMultiplicity(handler);
             name = filterName(name, handler);
-
+            // 将ChannelHandler包装为一个ChannelHandlerContext
             newCtx = newContext(group, name, handler);
-
+            // 将新的Context插入到链表中
             addFirst0(newCtx);
 
             // If the registered is false it means that the channel was not registered on an eventloop yet.
@@ -188,11 +193,17 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         return this;
     }
 
+    // 将新的ChannelHandlerContext节点插入到Pipeline链表中去
     private void addFirst0(AbstractChannelHandlerContext newCtx) {
+        // 获得原本链表中表头的下一个节点
         AbstractChannelHandlerContext nextCtx = head.next;
+        // 将新节点插入到表头后面
         newCtx.prev = head;
+        // 将原来表头的下一个节点插入到新节点的后面
         newCtx.next = nextCtx;
+        // 表头的next指向新节点
         head.next = newCtx;
+        // 原表头的下一个节点的prev指向新节点
         nextCtx.prev = newCtx;
     }
 

@@ -83,6 +83,7 @@ public class ChannelInboundHandlerAdapter extends ChannelHandlerAdapter implemen
      */
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+        // 触发ctx的fireChannelRead方法
         ctx.fireChannelRead(msg);
     }
 

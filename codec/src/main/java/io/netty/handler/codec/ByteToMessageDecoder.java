@@ -265,7 +265,10 @@ public abstract class ByteToMessageDecoder extends ChannelInboundHandlerAdapter 
 
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+        // 如果从inbound传过来的msg是ByteBuf
+        // 那么就对msg进行解码
         if (msg instanceof ByteBuf) {
+            // 创建一个CodecOutputList对象
             CodecOutputList out = CodecOutputList.newInstance();
             try {
                 ByteBuf data = (ByteBuf) msg;
@@ -275,6 +278,7 @@ public abstract class ByteToMessageDecoder extends ChannelInboundHandlerAdapter 
                 } else {
                     cumulation = cumulator.cumulate(ctx.alloc(), cumulation, data);
                 }
+                // 调用解码的方法
                 callDecode(ctx, cumulation, out);
             } catch (DecoderException e) {
                 throw e;
@@ -289,14 +293,18 @@ public abstract class ByteToMessageDecoder extends ChannelInboundHandlerAdapter 
                     // We did enough reads already try to discard some bytes so we not risk to see a OOME.
                     // See https://github.com/netty/netty/issues/4275
                     numReads = 0;
+                    // 已经读了很多内容了，为了减少内存溢出的风险我们需要丢弃一些字节
                     discardSomeReadBytes();
                 }
 
                 int size = out.size();
                 decodeWasNull = !out.insertSinceRecycled();
+                // 调用pipeline中的下一个解码器
                 fireChannelRead(ctx, out, size);
+                // 对CodecOutputList对象进行回收，下次使用时直接从缓存中取
                 out.recycle();
             }
+        // 否则将msg传递到后面的inbound中去
         } else {
             ctx.fireChannelRead(msg);
         }
@@ -412,6 +420,8 @@ public abstract class ByteToMessageDecoder extends ChannelInboundHandlerAdapter 
     /**
      * Called once data should be decoded from the given {@link ByteBuf}. This method will call
      * {@link #decode(ChannelHandlerContext, ByteBuf, List)} as long as decoding should take place.
+     * 当需要对ByteBuf进行解码时，该方法会被调用一次
+     * 并且该方法会调用 {@link #decode(ChannelHandlerContext, ByteBuf, List)}
      *
      * @param ctx           the {@link ChannelHandlerContext} which this {@link ByteToMessageDecoder} belongs to
      * @param in            the {@link ByteBuf} from which to read data
@@ -419,6 +429,7 @@ public abstract class ByteToMessageDecoder extends ChannelInboundHandlerAdapter 
      */
     protected void callDecode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) {
         try {
+            // 持续调用decodeRemovalReentryProtection方法直到ByteBuf中没有数据可读为止
             while (in.isReadable()) {
                 int outSize = out.size();
 
@@ -442,6 +453,8 @@ public abstract class ByteToMessageDecoder extends ChannelInboundHandlerAdapter 
 
                 // Check if this handler was removed before continuing the loop.
                 // If it was removed, it is not safe to continue to operate on the buffer.
+                // 继续下一个循环之前，先检查下该handler是否被移除了
+                // 如果被移除了，则需要终止处理缓冲区
                 //
                 // See https://github.com/netty/netty/issues/1664
                 if (ctx.isRemoved()) {

@@ -34,10 +34,13 @@ import java.util.NoSuchElementException;
  * <a href="http://www.oracle.com/technetwork/java/interceptingfilter-142169.html">Intercepting Filter</a> pattern
  * to give a user full control over how an event is handled and how the {@link ChannelHandler}s in a pipeline
  * interact with each other.
+ * ChannelPipeline是一个在 {@link Channel} 上处理或者拦截入站事件以及出站操作的 {@link ChannelHandler} 集合
+ * 他为用户提供了全部的能力来控制事件的处理以及在pipeline中 {@link ChannelHandler}s 怎样相互联系
  *
  * <h3>Creation of a pipeline</h3>
  *
  * Each channel has its own pipeline and it is created automatically when a new channel is created.
+ * 每一个Channel都有自己的pipeline，并且是在Channel创建的时候自动创建的
  *
  * <h3>How an event flows in a pipeline</h3>
  *
@@ -127,6 +130,7 @@ import java.util.NoSuchElementException;
  *
  * As you might noticed in the diagram shows, a handler has to invoke the event propagation methods in
  * {@link ChannelHandlerContext} to forward an event to its next handler.  Those methods include:
+ * 一个handler是通过调用 {@link ChannelHandlerContext} 中的方法来将事件传递到下一个handler
  * <ul>
  * <li>Inbound event propagation methods:
  *     <ul>

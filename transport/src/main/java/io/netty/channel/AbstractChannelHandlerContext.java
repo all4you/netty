@@ -39,6 +39,7 @@ abstract class AbstractChannelHandlerContext extends DefaultAttributeMap
         implements ChannelHandlerContext, ResourceLeakHint {
 
     private static final InternalLogger logger = InternalLoggerFactory.getInstance(AbstractChannelHandlerContext.class);
+    // ChannelHandlerContext被设计为一个链式结构
     volatile AbstractChannelHandlerContext next;
     volatile AbstractChannelHandlerContext prev;
 
@@ -63,8 +64,10 @@ abstract class AbstractChannelHandlerContext extends DefaultAttributeMap
      */
     private static final int INIT = 0;
 
+    // 标识一个ChannelHandler是入站还是出站
     private final boolean inbound;
     private final boolean outbound;
+    // 一个默认的ChannelPipeline实现
     private final DefaultChannelPipeline pipeline;
     private final String name;
     private final boolean ordered;
@@ -81,6 +84,7 @@ abstract class AbstractChannelHandlerContext extends DefaultAttributeMap
     private Runnable invokeChannelWritableStateChangedTask;
     private Runnable invokeFlushTask;
 
+    // handler的状态，默认为INIT初始状态
     private volatile int handlerState = INIT;
 
     AbstractChannelHandlerContext(DefaultChannelPipeline pipeline, EventExecutor executor, String name,
@@ -337,14 +341,18 @@ abstract class AbstractChannelHandlerContext extends DefaultAttributeMap
 
     @Override
     public ChannelHandlerContext fireChannelRead(final Object msg) {
+        // 获取下一个inboundContext并向后传递msg
         invokeChannelRead(findContextInbound(), msg);
         return this;
     }
 
     static void invokeChannelRead(final AbstractChannelHandlerContext next, Object msg) {
+        // touch一个msg
         final Object m = next.pipeline.touch(ObjectUtil.checkNotNull(msg, "msg"), next);
+        // 获取ctx的执行器，并执行
         EventExecutor executor = next.executor();
         if (executor.inEventLoop()) {
+            // 调用ctx的invokeChannelRead方法
             next.invokeChannelRead(m);
         } else {
             executor.execute(new Runnable() {
@@ -359,6 +367,8 @@ abstract class AbstractChannelHandlerContext extends DefaultAttributeMap
     private void invokeChannelRead(Object msg) {
         if (invokeHandler()) {
             try {
+                // 获取ChannelHandler之后，调用handler的channelRead方法
+                // 至此就把数据从一个ChannelHandler传递到了下一个ChannelHandler
                 ((ChannelInboundHandler) handler()).channelRead(this, msg);
             } catch (Throwable t) {
                 notifyHandlerException(t);
@@ -934,6 +944,7 @@ abstract class AbstractChannelHandlerContext extends DefaultAttributeMap
     private AbstractChannelHandlerContext findContextInbound() {
         AbstractChannelHandlerContext ctx = this;
         do {
+            // 获取pipeline中下一个inbound的ctx
             ctx = ctx.next;
         } while (!ctx.inbound);
         return ctx;
@@ -983,6 +994,7 @@ abstract class AbstractChannelHandlerContext extends DefaultAttributeMap
      */
     private boolean invokeHandler() {
         // Store in local variable to reduce volatile reads.
+        // 将volatile对象保存在局部变量中减少volatile对象读取的性能消耗
         int handlerState = this.handlerState;
         return handlerState == ADD_COMPLETE || (!ordered && handlerState == ADD_PENDING);
     }

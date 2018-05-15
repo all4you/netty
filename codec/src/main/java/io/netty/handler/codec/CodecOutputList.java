@@ -40,6 +40,7 @@ final class CodecOutputList extends AbstractList<Object> implements RandomAccess
                 @Override
                 protected CodecOutputLists initialValue() throws Exception {
                     // 16 CodecOutputList per Thread are cached.
+                    // 每个线程缓存16个CodecOutputList
                     return new CodecOutputLists(16);
                 }
             };
@@ -55,7 +56,12 @@ final class CodecOutputList extends AbstractList<Object> implements RandomAccess
         private int currentIdx;
         private int count;
 
+        /**
+         * 初始化指定个数的CodecOutputList数组
+         * @param numElements 个数
+         */
         CodecOutputLists(int numElements) {
+            // 对numElements进行处理，使得生成numElements下一个2的指数次幂的个数
             elements = new CodecOutputList[MathUtil.safeFindNextPositivePowerOfTwo(numElements)];
             for (int i = 0; i < elements.length; ++i) {
                 // Size of 16 should be good enough for the majority of all users as an initial capacity.
@@ -67,6 +73,7 @@ final class CodecOutputList extends AbstractList<Object> implements RandomAccess
         }
 
         public CodecOutputList getOrCreate() {
+            // 获取第一个对象时，直接new一个对象返回，且该对象不会被缓存
             if (count == 0) {
                 // Return a new CodecOutputList which will not be cached. We use a size of 4 to keep the overhead
                 // low.
@@ -74,6 +81,7 @@ final class CodecOutputList extends AbstractList<Object> implements RandomAccess
             }
             --count;
 
+            // 从缓存中获取
             int idx = (currentIdx - 1) & mask;
             CodecOutputList list = elements[idx];
             currentIdx = idx;
@@ -83,6 +91,7 @@ final class CodecOutputList extends AbstractList<Object> implements RandomAccess
         @Override
         public void recycle(CodecOutputList codecOutputList) {
             int idx = currentIdx;
+            // 将对象回收到缓存中去
             elements[idx] = codecOutputList;
             currentIdx = (idx + 1) & mask;
             ++count;
@@ -91,6 +100,8 @@ final class CodecOutputList extends AbstractList<Object> implements RandomAccess
     }
 
     static CodecOutputList newInstance() {
+        // 通过FastThreadLocal来获取一个CodecOutputList的实例
+        // CODEC_OUTPUT_LISTS_POOL中默认缓存了16个CodecOutputLists
         return CODEC_OUTPUT_LISTS_POOL.get().getOrCreate();
     }
 
