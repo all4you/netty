@@ -33,7 +33,8 @@ import java.nio.charset.UnsupportedCharsetException;
  * A random and sequential accessible sequence of zero or more bytes (octets).
  * This interface provides an abstract view for one or more primitive byte
  * arrays ({@code byte[]}) and {@linkplain ByteBuffer NIO buffers}.
- *
+ * ByteBuf 是一个字节序列，可以随机或连续存取零到多个字节。
+ * 他提供了一个统一的抽象，通过 ByteBuf 可以操作基础的字节数组和ByteBuffer缓冲区。
  * <h3>Creation of a buffer</h3>
  *
  * It is recommended to create a new buffer using the helper methods in

@@ -16,20 +16,11 @@
 
 package io.netty.bootstrap;
 
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelFuture;
-import io.netty.channel.ChannelFutureListener;
-import io.netty.channel.ChannelHandler;
-import io.netty.channel.ChannelOption;
-import io.netty.channel.ChannelPromise;
-import io.netty.channel.DefaultChannelPromise;
-import io.netty.channel.EventLoop;
-import io.netty.channel.EventLoopGroup;
-import io.netty.channel.ReflectiveChannelFactory;
-import io.netty.util.internal.SocketUtils;
+import io.netty.channel.*;
 import io.netty.util.AttributeKey;
 import io.netty.util.concurrent.EventExecutor;
 import io.netty.util.concurrent.GlobalEventExecutor;
+import io.netty.util.internal.SocketUtils;
 import io.netty.util.internal.StringUtil;
 import io.netty.util.internal.logging.InternalLogger;
 
@@ -269,6 +260,7 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
 
     /**
      * Create a new {@link Channel} and bind it.
+     * 创建一个新的Channel然后绑定到本地的某个端口上
      */
     public ChannelFuture bind(SocketAddress localAddress) {
         validate();
@@ -278,7 +270,11 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
         return doBind(localAddress);
     }
 
+    /**
+     * 具体的绑定操作
+     */
     private ChannelFuture doBind(final SocketAddress localAddress) {
+        // 初始化Channel并进行注册
         final ChannelFuture regFuture = initAndRegister();
         final Channel channel = regFuture.channel();
         if (regFuture.cause() != null) {
@@ -314,10 +310,21 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
         }
     }
 
+    /**
+     * 初始化并注册一个Channel
+     * 该方法服务端和客户端初始化时都会调用
+     */
     final ChannelFuture initAndRegister() {
         Channel channel = null;
         try {
+            /* 创建一个新的Channel
+             * 主要通过反射获取Channel的构造器
+             * 然后newInstance
+             */
             channel = channelFactory.newChannel();
+            /* 初始化该Channel
+             * 服务端初始化在 {@link #ServerBootstrap.init(Channel} }
+             */
             init(channel);
         } catch (Throwable t) {
             if (channel != null) {
