@@ -103,6 +103,7 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
         if (channelClass == null) {
             throw new NullPointerException("channelClass");
         }
+        // 通过反射创建ChannelFactory
         return channelFactory(new ReflectiveChannelFactory<C>(channelClass));
     }
 
@@ -346,6 +347,8 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
             return new DefaultChannelPromise(new FailedChannel(), GlobalEventExecutor.INSTANCE).setFailure(t);
         }
 
+        // 向EventLoopGroup中注册该Channel
+        // 这里获取到的EventLoopGroup就是ServerBootstrap中设置的bossGroup
         ChannelFuture regFuture = config().group().register(channel);
         if (regFuture.cause() != null) {
             if (channel.isRegistered()) {

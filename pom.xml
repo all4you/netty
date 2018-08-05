@@ -306,7 +306,7 @@
         <groupId>${project.groupId}</groupId>
         <artifactId>${tcnative.artifactId}</artifactId>
         <version>${tcnative.version}</version>
-        <classifier>${tcnative.classifier}</classifier>
+        <!--<classifier>${tcnative.classifier}</classifier>-->
         <scope>compile</scope>
         <optional>true</optional>
       </dependency>

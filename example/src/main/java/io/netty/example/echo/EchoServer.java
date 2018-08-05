@@ -54,7 +54,9 @@ public final class EchoServer {
         try {
             ServerBootstrap b = new ServerBootstrap();
             b.group(bossGroup, workerGroup)
-             .channel(NioServerSocketChannel.class) // 指定Channel的类型
+             // 指定Channel的类型，并创建ChannelFactory，
+             // ChannelFactory负责提供创建Channel，即newChannel()方法
+             .channel(NioServerSocketChannel.class)
              .option(ChannelOption.SO_BACKLOG, 100)
              .handler(new LoggingHandler(LogLevel.INFO))
              .childHandler(new ChannelInitializer<SocketChannel>() {
