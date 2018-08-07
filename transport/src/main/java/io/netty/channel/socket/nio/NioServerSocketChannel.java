@@ -124,6 +124,7 @@ public class NioServerSocketChannel extends AbstractNioMessageChannel
 
     @Override
     protected void doBind(SocketAddress localAddress) throws Exception {
+        // 通过JDK原生的nio进行绑定
         if (PlatformDependent.javaVersion() >= 7) {
             javaChannel().bind(localAddress, config.getBacklog());
         } else {
@@ -142,6 +143,7 @@ public class NioServerSocketChannel extends AbstractNioMessageChannel
 
         try {
             if (ch != null) {
+                // 触发Selector.select()
                 buf.add(new NioSocketChannel(this, ch));
                 return 1;
             }

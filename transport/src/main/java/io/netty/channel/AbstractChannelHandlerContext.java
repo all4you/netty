@@ -490,8 +490,10 @@ abstract class AbstractChannelHandlerContext extends DefaultAttributeMap
             return promise;
         }
 
+        // 从tail往前找下一个ctx
         final AbstractChannelHandlerContext next = findContextOutbound();
         EventExecutor executor = next.executor();
+        // 执行下一个ctx的invokeBind方法
         if (executor.inEventLoop()) {
             next.invokeBind(localAddress, promise);
         } else {
@@ -506,13 +508,17 @@ abstract class AbstractChannelHandlerContext extends DefaultAttributeMap
     }
 
     private void invokeBind(SocketAddress localAddress, ChannelPromise promise) {
+        // 直到找到最后一个ctx为止
         if (invokeHandler()) {
             try {
+                // 最终会调用到pipeline中的HeadContext的bind方法
                 ((ChannelOutboundHandler) handler()).bind(this, localAddress, promise);
             } catch (Throwable t) {
                 notifyOutboundHandlerException(t, promise);
             }
         } else {
+            // 继续执行当前ctx的bind方法
+            // 会继续往前找下一个ctx
             bind(localAddress, promise);
         }
     }
@@ -953,6 +959,7 @@ abstract class AbstractChannelHandlerContext extends DefaultAttributeMap
     private AbstractChannelHandlerContext findContextOutbound() {
         AbstractChannelHandlerContext ctx = this;
         do {
+            // 获取pipeline中上一个outbound的ctx
             ctx = ctx.prev;
         } while (!ctx.outbound);
         return ctx;

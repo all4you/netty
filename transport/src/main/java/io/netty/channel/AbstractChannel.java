@@ -557,6 +557,8 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
 
             boolean wasActive = isActive();
             try {
+                // 这里就走到具体的ServerChannel的doBind方法了
+                // 例如NioServerSocketChannel就是通过JDK中的nio进行bind
                 doBind(localAddress);
             } catch (Throwable t) {
                 safeSetFailure(promise, t);
@@ -566,6 +568,7 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
 
             if (!wasActive && isActive()) {
                 invokeLater(new Runnable() {
+                    // 激活pipeline中的Channel
                     @Override
                     public void run() {
                         pipeline.fireChannelActive();

@@ -152,6 +152,9 @@ public final class NioEventLoop extends SingleThreadEventLoop {
         selectStrategy = strategy;
     }
 
+    /**
+     * Selector元祖，里面包含一个Selector和一个未包装的Selector
+     */
     private static final class SelectorTuple {
         final Selector unwrappedSelector;
         final Selector selector;
@@ -276,6 +279,8 @@ public final class NioEventLoop extends SingleThreadEventLoop {
      * Registers an arbitrary {@link SelectableChannel}, not necessarily created by Netty, to the {@link Selector}
      * of this event loop.  Once the specified {@link SelectableChannel} is registered, the specified {@code task} will
      * be executed by this event loop when the {@link SelectableChannel} is ready.
+     * 将channel注册到Selector上去
+     * 当channel注册完之后，event loop就会执行该方法指定的task
      */
     public void register(final SelectableChannel ch, final int interestOps, final NioTask<?> task) {
         if (ch == null) {
@@ -297,6 +302,8 @@ public final class NioEventLoop extends SingleThreadEventLoop {
         }
 
         try {
+            // 将channel注册到Selector上去
+            // selector将会关注状态为interestOps的channel
             ch.register(selector, interestOps, task);
         } catch (Exception e) {
             throw new EventLoopException("failed to register a channel", e);
@@ -324,6 +331,8 @@ public final class NioEventLoop extends SingleThreadEventLoop {
     /**
      * Replaces the current {@link Selector} of this event loop with newly created {@link Selector}s to work
      * around the infamous epoll 100% CPU bug.
+     * 在event loop中用一个新创建的Selector来替换掉当前的Selector
+     * 来解决臭名昭著的epoll空转的bug
      */
     public void rebuildSelector() {
         if (!inEventLoop()) {
@@ -339,7 +348,9 @@ public final class NioEventLoop extends SingleThreadEventLoop {
     }
 
     private void rebuildSelector0() {
+        // 当前的Selector
         final Selector oldSelector = selector;
+        // Selector元祖，里面包含一个Selector和一个未包装的Selector
         final SelectorTuple newSelectorTuple;
 
         if (oldSelector == null) {
@@ -355,6 +366,7 @@ public final class NioEventLoop extends SingleThreadEventLoop {
 
         // Register all channels to the new Selector.
         int nChannels = 0;
+        // 遍历老的Selector中的所有的SelectionKey
         for (SelectionKey key: oldSelector.keys()) {
             Object a = key.attachment();
             try {
@@ -364,6 +376,7 @@ public final class NioEventLoop extends SingleThreadEventLoop {
 
                 int interestOps = key.interestOps();
                 key.cancel();
+                // 将channel注册到新的未包装的Selector中去
                 SelectionKey newKey = key.channel().register(newSelectorTuple.unwrappedSelector, interestOps, a);
                 if (a instanceof AbstractNioChannel) {
                     // Update SelectionKey
@@ -383,7 +396,9 @@ public final class NioEventLoop extends SingleThreadEventLoop {
             }
         }
 
+        // 用一个新的Selector来替换掉当前的Selector
         selector = newSelectorTuple.selector;
+        // 用一个新的未包装的Selector替换掉当前的未包装的Selector
         unwrappedSelector = newSelectorTuple.unwrappedSelector;
 
         try {
@@ -403,9 +418,10 @@ public final class NioEventLoop extends SingleThreadEventLoop {
         for (;;) {
             try {
                 switch (selectStrategy.calculateStrategy(selectNowSupplier, hasTasks())) {
-                    case SelectStrategy.CONTINUE:
+                    case SelectStrategy.CONTINUE: {
                         continue;
-                    case SelectStrategy.SELECT:
+                    }
+                    case SelectStrategy.SELECT: {
                         select(wakenUp.getAndSet(false));
 
                         // 'wakenUp.compareAndSet(false, true)' is always evaluated
@@ -439,6 +455,7 @@ public final class NioEventLoop extends SingleThreadEventLoop {
                         if (wakenUp.get()) {
                             selector.wakeup();
                         }
+                    }break;
                         // fall through
                     default:
                 }
