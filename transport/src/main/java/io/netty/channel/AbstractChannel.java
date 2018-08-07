@@ -39,6 +39,7 @@ import java.util.concurrent.RejectedExecutionException;
 
 /**
  * A skeletal {@link Channel} implementation.
+ * 客户端Channel的一个骨架实现
  */
 public abstract class AbstractChannel extends DefaultAttributeMap implements Channel {
 
@@ -476,6 +477,7 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
                 register0(promise);
             } else {
                 try {
+                    // 通过该方法启动EventLoop中关联的线程
                     eventLoop.execute(new Runnable() {
                         @Override
                         public void run() {

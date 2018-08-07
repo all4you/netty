@@ -18,8 +18,9 @@ package io.netty.channel;
 import java.net.SocketAddress;
 
 /**
- * A skeletal server-side {@link Channel} implementation.  A server-side
- * {@link Channel} does not allow the following operations:
+ * A skeletal server-side {@link Channel} implementation.
+ * 一个服务端Channel的骨架实现
+ * A server-side {@link Channel} does not allow the following operations:
  * <ul>
  * <li>{@link #connect(SocketAddress, ChannelPromise)}</li>
  * <li>{@link #disconnect(ChannelPromise)}</li>

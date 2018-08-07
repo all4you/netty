@@ -109,7 +109,7 @@ final class HeapByteBufUtil {
     static void setInt(byte[] memory, int index, int value) {
         memory[index]     = (byte) (value >>> 24);
         memory[index + 1] = (byte) (value >>> 16);
-        memory[index + 2] = (byte) (value >>> 8);
+        memory[index + 2] = (byte) (value >>> 8); // 往右移动8位，即左边补8个0
         memory[index + 3] = (byte) value;
     }
 

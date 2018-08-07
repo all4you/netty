@@ -34,8 +34,14 @@ import java.util.List;
 public abstract class ByteToMessageCodec<I> extends ChannelDuplexHandler {
 
     private final TypeParameterMatcher outboundMsgMatcher;
+    /**
+     * encoder相当于outboundChannelHandler
+     */
     private final MessageToByteEncoder<I> encoder;
 
+    /**
+     * decoder相当于inboundChannelHandler
+     */
     private final ByteToMessageDecoder decoder = new ByteToMessageDecoder() {
         @Override
         public void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception {
