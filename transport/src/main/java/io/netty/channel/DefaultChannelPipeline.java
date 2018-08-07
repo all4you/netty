@@ -929,6 +929,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
 
     @Override
     public final ChannelPipeline fireChannelActive() {
+        // 从pipeline的头部开始激活channel
         AbstractChannelHandlerContext.invokeChannelActive(head);
         return this;
     }
@@ -1007,6 +1008,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
 
     @Override
     public final ChannelFuture bind(SocketAddress localAddress, ChannelPromise promise) {
+        // 通过TailContext调用bind
         return tail.bind(localAddress, promise);
     }
 
