@@ -332,7 +332,7 @@ public final class NioEventLoop extends SingleThreadEventLoop {
      * Replaces the current {@link Selector} of this event loop with newly created {@link Selector}s to work
      * around the infamous epoll 100% CPU bug.
      * 在event loop中用一个新创建的Selector来替换掉当前的Selector
-     * 来解决臭名昭著的epoll空转的bug
+     * 来解决臭名昭著的 epoll 空转的bug
      */
     public void rebuildSelector() {
         if (!inEventLoop()) {
@@ -415,6 +415,7 @@ public final class NioEventLoop extends SingleThreadEventLoop {
 
     @Override
     protected void run() {
+        // 不断的进行select操作
         for (;;) {
             try {
                 switch (selectStrategy.calculateStrategy(selectNowSupplier, hasTasks())) {
@@ -741,6 +742,7 @@ public final class NioEventLoop extends SingleThreadEventLoop {
         }
     }
 
+    // 进行select操作
     private void select(boolean oldWakenUp) throws IOException {
         Selector selector = this.selector;
         try {
@@ -804,6 +806,7 @@ public final class NioEventLoop extends SingleThreadEventLoop {
                             "Selector.select() returned prematurely {} times in a row; rebuilding Selector {}.",
                             selectCnt, selector);
 
+                    // 重建Selector，以解决JDK中的epoll的bug
                     rebuildSelector();
                     selector = this.selector;
 
