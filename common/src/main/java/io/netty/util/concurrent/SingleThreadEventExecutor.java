@@ -774,7 +774,9 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
             addTask(task);
         } else {
             // 启动EventLoop中关联的java线程
+            // 并在executor中执行
             startThread();
+            // 将任务添加的执行队列中去等待执行
             addTask(task);
             if (isShutdown() && removeTask(task)) {
                 reject();

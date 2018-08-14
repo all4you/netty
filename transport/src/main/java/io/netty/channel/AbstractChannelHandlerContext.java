@@ -214,6 +214,8 @@ abstract class AbstractChannelHandlerContext extends DefaultAttributeMap
     private void invokeChannelActive() {
         if (invokeHandler()) {
             try {
+                // 获取pipeline中绑定的ChannelHandler
+                // 默认是从HeadContext开始
                 ((ChannelInboundHandler) handler()).channelActive(this);
             } catch (Throwable t) {
                 notifyHandlerException(t);
