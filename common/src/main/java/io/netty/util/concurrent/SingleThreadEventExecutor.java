@@ -171,6 +171,7 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
         this.executor = ObjectUtil.checkNotNull(executor, "executor");
         taskQueue = newTaskQueue(this.maxPendingTasks);
         rejectedExecutionHandler = ObjectUtil.checkNotNull(rejectedHandler, "rejectedHandler");
+        System.out.println("init SingleThreadEventExecutor===>"+this);
     }
 
     /**
@@ -359,6 +360,7 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
 
         do {
             fetchedAll = fetchFromScheduledTaskQueue();
+            // 从任务队列中获取任务进行执行
             if (runAllTasksFrom(taskQueue)) {
                 ranAtLeastOne = true;
             }
@@ -415,6 +417,8 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
 
             // Check timeout every 64 tasks because nanoTime() is relatively expensive.
             // XXX: Hard-coded value - will make it configurable if it is really a problem.
+            // 每执行一个任务，都检查一下执行的时间是否达到设定的时间
+            // 如果达到了，则退出
             if ((runTasks & 0x3F) == 0) {
                 lastExecutionTime = ScheduledFutureTask.nanoTime();
                 if (lastExecutionTime >= deadline) {
@@ -763,12 +767,19 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
         return isTerminated();
     }
 
+    /**
+     * 覆盖的是 {@link Executor#execute(Runnable)}的方法
+     * @param task
+     */
     @Override
     public void execute(Runnable task) {
         if (task == null) {
             throw new NullPointerException("task");
         }
 
+        // 一开始this.thread==null，所以inEventLoop=false
+        // 当startThread()方法执行完毕后，this.thread==Thread.currentThread()，之后inEventLoop=true
+        // 每当要建立新连接时，都会通过threadFactory创建一个新的线程
         boolean inEventLoop = inEventLoop();
         if (inEventLoop) {
             addTask(task);
@@ -776,7 +787,7 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
             // 启动EventLoop中关联的java线程
             // 并在executor中执行
             startThread();
-            // 将任务添加的执行队列中去等待执行
+            // 将任务添加到执行队列中去等待执行
             addTask(task);
             if (isShutdown() && removeTask(task)) {
                 reject();
@@ -869,12 +880,15 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
     private static final long SCHEDULE_PURGE_INTERVAL = TimeUnit.SECONDS.toNanos(1);
 
     private void startThread() {
+        // 如果还未启动过当前Executor对应的线程
         if (state == ST_NOT_STARTED) {
+            // 将 state 的值设置为 ST_STARTED
             if (STATE_UPDATER.compareAndSet(this, ST_NOT_STARTED, ST_STARTED)) {
                 try {
                     // 启动线程
                     doStartThread();
                 } catch (Throwable cause) {
+                    // 如果启动失败，则将将 state 的值设置为 ST_NOT_STARTED
                     STATE_UPDATER.set(this, ST_NOT_STARTED);
                     PlatformDependent.throwException(cause);
                 }
@@ -884,9 +898,15 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
 
     private void doStartThread() {
         assert thread == null;
+        // executor的实例是ThreadPerTaskExecutor
+        // 是在MultithreadEventExecutorGroup中实例化，
+        // 然后通过newChild方法进行传递：
+        // NioEventLoop-->SingleThreadEventLoop-->SingleThreadEventExecutor
+        // ThreadPerTaskExecutor每次执行execute方法时，都会通过threadFactory创建一个线程
         executor.execute(new Runnable() {
             @Override
             public void run() {
+                // 该线程是通过ThreadPerTaskExecutor实例中的threadFactory创建的
                 thread = Thread.currentThread();
                 if (interrupted) {
                     thread.interrupt();
@@ -896,6 +916,7 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
                 updateLastExecutionTime();
                 try {
                     // 实际会执行到NioEventLoop的run方法
+                    // 也就是在这里开启了NioEventLoop的事件轮询
                     SingleThreadEventExecutor.this.run();
                     success = true;
                 } catch (Throwable t) {

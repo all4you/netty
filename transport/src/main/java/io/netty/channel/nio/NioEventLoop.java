@@ -463,12 +463,15 @@ public final class NioEventLoop extends SingleThreadEventLoop {
 
                 cancelledKeys = 0;
                 needsToSelectAgain = false;
+                // 处理io事件和非io事件的比例
                 final int ioRatio = this.ioRatio;
                 if (ioRatio == 100) {
                     try {
+                        // 先执行io任务
                         processSelectedKeys();
                     } finally {
                         // Ensure we always run tasks.
+                        // 再执行非io任务
                         runAllTasks();
                     }
                 } else {

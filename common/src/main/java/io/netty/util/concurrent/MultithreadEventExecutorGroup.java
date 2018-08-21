@@ -79,6 +79,8 @@ public abstract class MultithreadEventExecutorGroup extends AbstractEventExecuto
 
         children = new EventExecutor[nThreads];
 
+        // bossGroup会执行 1 次，来创建对应个数的 SingleThreadEventExecutor
+        // workerGroup会执行 NettyRuntime.availableProcessors()*2 次，来创建对应个数的 SingleThreadEventExecutor
         for (int i = 0; i < nThreads; i ++) {
             boolean success = false;
             try {
@@ -88,6 +90,7 @@ public abstract class MultithreadEventExecutorGroup extends AbstractEventExecuto
                 // TODO: Think about if this is a good exception type
                 throw new IllegalStateException("failed to create a child event loop", e);
             } finally {
+                // 如果创建某个EventExecutor失败了，则将前面创建的全部终止
                 if (!success) {
                     for (int j = 0; j < i; j ++) {
                         children[j].shutdownGracefully();
