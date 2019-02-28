@@ -419,10 +419,9 @@ public final class NioEventLoop extends SingleThreadEventLoop {
         for (;;) {
             try {
                 switch (selectStrategy.calculateStrategy(selectNowSupplier, hasTasks())) {
-                    case SelectStrategy.CONTINUE: {
+                    case SelectStrategy.CONTINUE:
                         continue;
-                    }
-                    case SelectStrategy.SELECT: {
+                    case SelectStrategy.SELECT:
                         select(wakenUp.getAndSet(false));
 
                         // 'wakenUp.compareAndSet(false, true)' is always evaluated
@@ -456,7 +455,6 @@ public final class NioEventLoop extends SingleThreadEventLoop {
                         if (wakenUp.get()) {
                             selector.wakeup();
                         }
-                    }break;
                         // fall through
                     default:
                 }

@@ -171,7 +171,7 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
         this.executor = ObjectUtil.checkNotNull(executor, "executor");
         taskQueue = newTaskQueue(this.maxPendingTasks);
         rejectedExecutionHandler = ObjectUtil.checkNotNull(rejectedHandler, "rejectedHandler");
-        System.out.println("init SingleThreadEventExecutor===>"+this);
+        System.out.println("init SingleThreadEventExecutor===>" + this);
     }
 
     /**
