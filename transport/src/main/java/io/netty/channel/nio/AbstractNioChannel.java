@@ -416,6 +416,8 @@ public abstract class AbstractNioChannel extends AbstractChannel {
 
         readPending = true;
 
+        // 检查 SelectionKey 的感兴趣列表
+        // 并将感兴趣列表设置为 readInterestOp
         final int interestOps = selectionKey.interestOps();
         if ((interestOps & readInterestOp) == 0) {
             selectionKey.interestOps(interestOps | readInterestOp);

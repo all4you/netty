@@ -93,6 +93,11 @@ public abstract class ChannelInitializer<C extends Channel> extends ChannelInbou
     }
 
     /**
+     * 这个方法会被 {@link io.netty.channel.AbstractChannel.AbstractUnsafe#register0(io.netty.channel.ChannelPromise))
+     * 方法触发调用
+     * 也就是说在 JDK的Channel被注册到 Selector 之后，会触发
+     * ChannelHandler 的 handlerAdded 方法
+     *
      * {@inheritDoc} If override this method ensure you call super!
      */
     @Override

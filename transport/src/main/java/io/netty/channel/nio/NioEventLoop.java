@@ -146,6 +146,7 @@ public final class NioEventLoop extends SingleThreadEventLoop {
             throw new NullPointerException("selectStrategy");
         }
         provider = selectorProvider;
+        // 初始化一个 Selector 元祖
         final SelectorTuple selectorTuple = openSelector();
         selector = selectorTuple.selector;
         unwrappedSelector = selectorTuple.unwrappedSelector;
@@ -347,6 +348,7 @@ public final class NioEventLoop extends SingleThreadEventLoop {
         rebuildSelector0();
     }
 
+    // TODO 解决epoll的bug
     private void rebuildSelector0() {
         // 当前的Selector
         final Selector oldSelector = selector;

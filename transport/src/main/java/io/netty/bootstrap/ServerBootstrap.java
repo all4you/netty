@@ -152,7 +152,8 @@ public class ServerBootstrap extends AbstractBootstrap<ServerBootstrap, ServerCh
                 channel.attr(key).set(e.getValue());
             }
         }
-        // 获取Channel的pipeline
+        // 获取 channel 中绑定的pipeline
+        // 这里的 channel 是 NIOServerSocketChannel 的实例
         ChannelPipeline p = channel.pipeline();
 
         final EventLoopGroup currentChildGroup = childGroup;
@@ -166,25 +167,29 @@ public class ServerBootstrap extends AbstractBootstrap<ServerBootstrap, ServerCh
         synchronized (childAttrs) {
             currentChildAttrs = childAttrs.entrySet().toArray(newAttrArray(childAttrs.size()));
         }
-
-        // 将在创建ServerBootstrap对象时，创建的channelHandler和childHandler对象都添加到
-        // channel的pipeline中去
+        // 将创建的channelHandler对象
+        // 添加到channel的pipeline中去
         p.addLast(new ChannelInitializer<Channel>() {
+            // 这里的 ch 对象就是 init 方法参数中的 channel 对象
             @Override
             public void initChannel(final Channel ch) throws Exception {
                 final ChannelPipeline pipeline = ch.pipeline();
+                // 这里获取的就是通过 handler() 方法指定的 ChannelHandler
                 ChannelHandler handler = config.handler();
                 if (handler != null) {
                     pipeline.addLast(handler);
                 }
 
+                // 这个EventLoop的线程就是用来执行用户自定义的ChannelHandler
+                // 该 ChannelHandler 通过 childHandler() 方法指定
                 ch.eventLoop().execute(new Runnable() {
                     @Override
                     public void run() {
                         // 创建一个ServerBootstrapAcceptor对象，
                         // 用来在线程内自动读取socket
-                        pipeline.addLast(new ServerBootstrapAcceptor(
-                                ch, currentChildGroup, currentChildHandler, currentChildOptions, currentChildAttrs));
+                        // childHandler 被添加到客户端 channel 的pipeline
+                        // 并且将已经建立好连接的客户端 channel 注册到 workerGroup 的 Selector 上去
+                        pipeline.addLast(new ServerBootstrapAcceptor(ch, currentChildGroup, currentChildHandler, currentChildOptions, currentChildAttrs));
                     }
                 });
             }
@@ -257,6 +262,8 @@ public class ServerBootstrap extends AbstractBootstrap<ServerBootstrap, ServerCh
             }
 
             try {
+                // 当新连接的 SocketChannel 有可读数据之后
+                // 将他注册到 workerGroup 上去
                 childGroup.register(child).addListener(new ChannelFutureListener() {
                     @Override
                     public void operationComplete(ChannelFuture future) throws Exception {
@@ -279,6 +286,9 @@ public class ServerBootstrap extends AbstractBootstrap<ServerBootstrap, ServerCh
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
             final ChannelConfig config = ctx.channel().config();
             if (config.isAutoRead()) {
+                // 当该通道上出现异常时，停止接受新的连接1秒钟，等待该通道恢复
+                // 因为如果一直接受新的连接可能会造成文件句柄达到上限而造成 JVM crash
+
                 // stop accept new connections for 1 second to allow the channel to recover
                 // See https://github.com/netty/netty/issues/1328
                 config.setAutoRead(false);

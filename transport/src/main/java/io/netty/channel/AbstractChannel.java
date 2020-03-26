@@ -495,6 +495,9 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
             }
         }
 
+        // 1.doRegister===>SDK 中的Channel注册
+        // 2.通过pipeline触发ChannelHandler的handlerAdded方法
+        // 3.通过pipeline触发ChannelHandler的channelRegistered方法
         private void register0(ChannelPromise promise) {
             try {
                 // check if the channel is still open as it could be closed in the mean time when the register
