@@ -1151,6 +1151,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         // the EventLoop.
         PendingHandlerCallback task = pendingHandlerCallbackHead;
         while (task != null) {
+            // 触发handlerAdded
             task.execute();
             task = task.next;
         }
@@ -1397,6 +1398,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         @Override
         public void channelRegistered(ChannelHandlerContext ctx) throws Exception {
             invokeHandlerAddedIfNeeded();
+            // 继续触发下一个channel
             ctx.fireChannelRegistered();
         }
 

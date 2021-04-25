@@ -129,11 +129,13 @@ abstract class AbstractChannelHandlerContext extends DefaultAttributeMap
 
     @Override
     public ChannelHandlerContext fireChannelRegistered() {
+        // 触发下一个ctx的fireChannelRegistered
         invokeChannelRegistered(findContextInbound());
         return this;
     }
 
     static void invokeChannelRegistered(final AbstractChannelHandlerContext next) {
+        // 触发ctx的invokeChannelRegistered
         EventExecutor executor = next.executor();
         if (executor.inEventLoop()) {
             next.invokeChannelRegistered();
@@ -150,6 +152,8 @@ abstract class AbstractChannelHandlerContext extends DefaultAttributeMap
     private void invokeChannelRegistered() {
         if (invokeHandler()) {
             try {
+                // 触发ctx中绑定的channelHandler的channelRegistered
+                // 这里就会一直传递到用户定义的ChannelHandler
                 ((ChannelInboundHandler) handler()).channelRegistered(this);
             } catch (Throwable t) {
                 notifyHandlerException(t);

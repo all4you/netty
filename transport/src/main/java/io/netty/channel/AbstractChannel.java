@@ -471,13 +471,16 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
                 return;
             }
 
+            // 在这里将EventLoop绑定到当前Channel上了
+            // 此时eventLoop中的thread还没有启动
             AbstractChannel.this.eventLoop = eventLoop;
 
             if (eventLoop.inEventLoop()) {
                 register0(promise);
             } else {
                 try {
-                    // 通过该方法启动EventLoop中关联的线程
+                    // 通过该方法第一次启动EventLoop中关联的线程
+                    // 并开启了NioEventLoop的事件轮询，不断的执行run方法
                     eventLoop.execute(new Runnable() {
                         @Override
                         public void run() {

@@ -171,6 +171,8 @@ public class ServerBootstrap extends AbstractBootstrap<ServerBootstrap, ServerCh
         // 添加到channel的pipeline中去
         p.addLast(new ChannelInitializer<Channel>() {
             // 这里的 ch 对象就是 init 方法参数中的 channel 对象
+            // handlerAdded会触发initChannel的方法
+            // 该方法执行完毕后，ChannelInitializer的实例就会从pipeline中移除
             @Override
             public void initChannel(final Channel ch) throws Exception {
                 final ChannelPipeline pipeline = ch.pipeline();

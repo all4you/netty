@@ -81,10 +81,13 @@ public abstract class AbstractNioChannel extends AbstractChannel {
      * @param readInterestOp    the ops to set to receive data from the {@link SelectableChannel}
      */
     protected AbstractNioChannel(Channel parent, SelectableChannel ch, int readInterestOp) {
+        // 注意这里Channel是netty定义的
+        // SelectableChannel是JDK中定义的
         super(parent);
         this.ch = ch;
         this.readInterestOp = readInterestOp;
         try {
+            // 这里设置的非阻塞模式
             ch.configureBlocking(false);
         } catch (IOException e) {
             try {

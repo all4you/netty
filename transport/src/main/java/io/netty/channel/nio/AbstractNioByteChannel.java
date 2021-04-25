@@ -123,6 +123,7 @@ public abstract class AbstractNioByteChannel extends AbstractNioChannel {
             try {
                 do {
                     byteBuf = allocHandle.allocate(allocator);
+                    // 通过doReadBytes将channel上的bytes字节流封装成ByteBuf
                     allocHandle.lastBytesRead(doReadBytes(byteBuf));
                     if (allocHandle.lastBytesRead() <= 0) {
                         // nothing was read. release the buffer.

@@ -662,8 +662,8 @@ public final class NioEventLoop extends SingleThreadEventLoop {
 
             // Also check for readOps of 0 to workaround possible JDK bug which may otherwise lead
             // to a spin loop
+            // 当有事件准备好时，执行unsafe的read方法，BossGroup执行的accept操作，WorkerGroup执行的是读写操作
             if ((readyOps & (SelectionKey.OP_READ | SelectionKey.OP_ACCEPT)) != 0 || readyOps == 0) {
-                // 读取数据
                 unsafe.read();
             }
         } catch (CancelledKeyException ignored) {
